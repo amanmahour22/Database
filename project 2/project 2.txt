@@ -1,0 +1,220 @@
+#1
+show dbs
+use ecommerce
+db.createCollection('customer')
+db.customer.insert (
+{
+    cust_id: 151,
+    cust_type: 'normal',
+    cust_name: 'rohan',
+    cust_password: 'rohan@123',
+    gender: 'Male',
+    dob: '2001-10-22',
+    city: 'Agra',
+    email: 'rohan@123',
+    mobile_number: 8218883212,
+    address: 'chitra talkies, agra'
+})
+db.createCollection('product')
+db.product.insertMany ([
+  {
+    product_id: 400,
+    product_name: 'shoes',
+    product_desc: 'Spark Shoes',
+    cost: 2000,
+    size: 30,
+    quantity: 100,
+    discount: 200
+  },
+  {
+    product_id: 401,
+    product_name: 'Shirt',
+    product_desc: 'classic shirt',
+    cost: 1000,
+    size: 30,
+    quantity: 100,
+    discount: 50
+  },
+  {
+    product_id: 402,
+    product_name: 'Pant',
+    product_desc: 'Awesome Pant',
+    cost: 2000,
+    size: 30,
+    quantity: 50,
+    discount: 100
+  },
+  {
+    product_id: 403,
+    product_name: 'T-Shirt',
+    product_desc: 'Awesome T-shirt',
+    cost: 1000,
+    size: 30,
+    quantity: 200,
+    discount: 100
+  },
+  {
+    product_id: 404,
+    product_name: 'T-shirt',
+    product_desc: 'Classic T-Shirt',
+    cost: 500,
+    size: 28,
+    quantity: 400,
+    discount: 50
+  }
+])
+db.createCollection('seller')
+db.seller.insert(
+  {
+    seller_id: 251,
+    seller_name: 'ankush',
+    seller_password: 'ankush@123',
+    city: 'agra',
+    email: 'ankush@gmail.com',
+    mobile_number: 8484512146,
+    add_product: [
+      ObjectId("645b30f9ce19358d57ea6077"),
+      ObjectId("645b30f9ce19358d57ea6078")
+    ]
+})
+db.createCollection('admin')
+db.admin.insert(
+    {
+    admin_id: 351,
+    admin_name: 'abhi',
+    admin_password: 'abhi@123',
+    city: 'agra',
+    email: 'abhi@gmail.com',
+    mobile_number: 8454642135,
+    add_product: [
+      ObjectId("645b30f9ce19358d57ea6079"),
+      ObjectId("645b3b6cce19358d57ea607a")
+    ]
+})
+db.createCollection('view_product')
+db.view_product.insert(
+  {
+    categories: [
+      ObjectId("645b30f9ce19358d57ea6077"),
+      ObjectId("645b30f9ce19358d57ea6078")
+    ],
+    brand: [ ObjectId("645b30f9ce19358d57ea6079") ],
+    segment: [ ObjectId("645b3b6cce19358d57ea607a") ],
+    tags: [ ObjectId("645b3b6cce19358d57ea607b") ]
+})
+db.createCollection('cart')
+db.cart.insert(
+{
+   checkout : [ObjectId("645b30f9ce19358d57ea6077")],
+   make_payment : 1800,
+   track_the_order : 'geo_location',
+})
+db.createCollection('order')
+db.order.insert(
+  {
+    _id: ObjectId("645b5c2bce19358d57ea6085"),
+    product_id: 400,
+    product_name: 'shoes',
+    product_desc: 'Spark Shoes',
+    cost: 1800,
+    size: 30,
+    quantity: 1,
+    cust_name: 'rohan',
+    address: 'chitra talkies, agra'
+})
+
+#2
+db.orders.aggregate([
+   {
+      $group: {
+         _id: null,
+         avgOrderValue: { $avg: "$orderTotal" }
+      }
+   }
+])
+db.customers.aggregate([
+   {
+      $lookup: {
+         from: "orders",
+         localField: "_id",
+         foreignField: "customerId",
+         as: "orders"
+      }
+   },
+   {
+      $project: {
+         _id: 1,
+         name: 1,
+         orders: {
+            $filter: {
+               input: "$orders",
+               as: "order",
+               cond: {
+                  $and: [
+                     { $gte: [ "$$order.orderDate", new Date(Date.now() - 60 * 24 * 60 * 60 * 1000 * 60) ] },
+                     { $lt: [ "$$order.orderDate", new Date() ] }
+                  ]
+               }
+            }
+         },
+         totalOrderValue: { $sum: "$orders.orderTotal" }
+      }
+   },
+   { $sort: { totalOrderValue: -1 } },
+   { $limit: 10 }
+])
+db.orders.aggregate([
+   {
+      $match: {
+         orderDate: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) }
+      }
+   },
+   {
+      $group: {
+         _id: null,
+         totalOrdersThisMonth: { $sum: "$orderTotal" }
+      }
+   }
+])
+db.customers.aggregate([
+   {
+      $group: {
+         _id: "$city",
+         customerCount: { $sum: 1 }
+      }
+   }
+])
+db.orders.aggregate([
+   {
+      $lookup: {
+         from: "sellers",
+         localField: "sellerId",
+         foreignField: "_id",
+         as: "seller"
+      }
+   },
+   {
+      $lookup: {
+         from: "customers",
+         localField: "customerId",
+         foreignField: "_id",
+         as: "customer"
+      }
+   },
+   {
+      $match: {
+         "seller.city": { $eq: "$customer.city" }
+      }
+   },
+   {
+      $group: {
+         _id: "$seller._id",
+         sellerName: { $first: "$seller.name" },
+         productCount: { $sum: "$products.quantity" }
+      }
+   },
+   {
+      $sort: { productCount: -1 }
+   }
+])
+
